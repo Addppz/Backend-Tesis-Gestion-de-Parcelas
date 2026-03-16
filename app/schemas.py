@@ -66,6 +66,7 @@ class ParcelaRead(SQLModel):
     descripcion: str
     cultivo: str
     geometria: Dict[str, Any]
+    usuario_id: Optional[int]
 
 
 class SatelitalResponse(SQLModel):

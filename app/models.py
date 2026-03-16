@@ -32,6 +32,11 @@ class Parcela(SQLModel, table=True):
             '{"coordinates": [[lon, lat], ..., [lon, lat]]}'
         ),
     )
+    usuario_id: Optional[int] = Field(
+        default=None, 
+        foreign_key="usuarios.id",
+        description="ID del usuario propietario de esta parcela",
+    )
 
     def to_sentinel_format(self) -> Dict[str, Any]:
         """

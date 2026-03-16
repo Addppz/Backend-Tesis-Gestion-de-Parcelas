@@ -3,11 +3,13 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from app.auth_router import get_current_user
 from app.database import get_session
-from app.models import Parcela
+from app.models import Parcela, Usuario
 from app.schemas import ParcelaCreate, ParcelaRead, SatelitalResponse
 
 router = APIRouter(prefix="/parcelas", tags=["Parcelas"])
+
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +31,7 @@ router = APIRouter(prefix="/parcelas", tags=["Parcelas"])
 def create_parcela(
     payload: ParcelaCreate,
     session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user),
 ) -> ParcelaRead:
     # ParcelaCreate ya validó la geometría; procedemos a persistir.
     parcela = Parcela(
@@ -36,6 +39,7 @@ def create_parcela(
         descripcion=payload.descripcion,
         cultivo=payload.cultivo,
         geometria=payload.geometria,
+        usuario_id=current_user.id,
     )
     session.add(parcela)
     session.commit()
@@ -44,7 +48,7 @@ def create_parcela(
 
 
 # ---------------------------------------------------------------------------
-# GET /parcelas — Listar todas las parcelas
+# GET /parcelas — Listar todas las parcelas (del usuario actual)
 # ---------------------------------------------------------------------------
 
 
@@ -52,10 +56,13 @@ def create_parcela(
     "/",
     response_model=List[ParcelaRead],
     summary="Listar parcelas",
-    description="Retorna la lista completa de parcelas registradas.",
+    description="Retorna la lista de parcelas registradas pertenecientes al usuario actual.",
 )
-def list_parcelas(session: Session = Depends(get_session)) -> List[Parcela]:
-    parcelas = session.exec(select(Parcela)).all()
+def list_parcelas(
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user),
+) -> List[Parcela]:
+    parcelas = session.exec(select(Parcela).where(Parcela.usuario_id == current_user.id)).all()
     return parcelas
 
 
@@ -77,11 +84,75 @@ def list_parcelas(session: Session = Depends(get_session)) -> List[Parcela]:
 def get_parcela_satelital(
     parcela_id: int,
     session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user),
 ) -> SatelitalResponse:
     parcela = session.get(Parcela, parcela_id)
-    if not parcela:
+    if not parcela or parcela.usuario_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Parcela con id={parcela_id} no encontrada.",
         )
     return SatelitalResponse(**parcela.to_sentinel_format())
+
+
+# ---------------------------------------------------------------------------
+# PUT /parcelas/{id} — Actualizar parcela
+# ---------------------------------------------------------------------------
+
+
+@router.put(
+    "/{parcela_id}",
+    response_model=ParcelaRead,
+    summary="Actualizar parcela",
+    description="Actualiza los metadatos y la geometría de una parcela.",
+)
+def update_parcela(
+    parcela_id: int,
+    payload: ParcelaCreate,
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user),
+) -> ParcelaRead:
+    parcela = session.get(Parcela, parcela_id)
+    if not parcela or parcela.usuario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Parcela con id={parcela_id} no encontrada.",
+        )
+    
+    parcela.nombre = payload.nombre
+    parcela.descripcion = payload.descripcion
+    parcela.cultivo = payload.cultivo
+    parcela.geometria = payload.geometria
+    
+    session.add(parcela)
+    session.commit()
+    session.refresh(parcela)
+    return parcela
+
+
+# ---------------------------------------------------------------------------
+# DELETE /parcelas/{id} — Eliminar parcela
+# ---------------------------------------------------------------------------
+
+
+@router.delete(
+    "/{parcela_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar parcela",
+    description="Elimina de forma permanente una parcela.",
+)
+def delete_parcela(
+    parcela_id: int,
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user),
+):
+    parcela = session.get(Parcela, parcela_id)
+    if not parcela or parcela.usuario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Parcela con id={parcela_id} no encontrada.",
+        )
+    
+    session.delete(parcela)
+    session.commit()
+    return None
