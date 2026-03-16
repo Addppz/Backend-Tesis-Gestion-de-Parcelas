@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+from datetime import date
 
 from pydantic import field_validator, model_validator
 from sqlmodel import SQLModel
@@ -67,12 +68,28 @@ class ParcelaRead(SQLModel):
     cultivo: str
     geometria: Dict[str, Any]
     usuario_id: Optional[int]
+    # Devuelve el task_id del Módulo Satelital si ya existe un proceso iniciado
+    satellite_task_id: Optional[str] = None
 
 
 class SatelitalResponse(SQLModel):
     """Respuesta del endpoint /satelital, compatible con Delvis."""
 
     polygon: Dict[str, Any]
+
+
+class SatelliteProcessRequest(SQLModel):
+    """
+    Parámetros que envía el frontend para solicitar el procesamiento
+    satelital de una parcela. La geometría se obtiene automáticamente
+    de la parcela en la base de datos.
+    """
+
+    start_date: date
+    end_date: date
+    max_cloud_cover: int = 10
+    max_items: int = 30
+    target_resolution: int = 10
 
 
 # ---------------------------------------------------------------------------

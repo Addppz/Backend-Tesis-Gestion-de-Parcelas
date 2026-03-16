@@ -37,6 +37,13 @@ class Parcela(SQLModel, table=True):
         foreign_key="usuarios.id",
         description="ID del usuario propietario de esta parcela",
     )
+    # Vinculación con el Módulo Satelital:
+    # Cuando se inicia un procesamiento, el Worker devuelve un task_id (UUID)
+    # que se guarda aquí para que el usuario pueda consultar su estado.
+    satellite_task_id: Optional[str] = Field(
+        default=None,
+        description="ID de la tarea en el Módulo Satelital asociado a esta parcela.",
+    )
 
     def to_sentinel_format(self) -> Dict[str, Any]:
         """
